@@ -7,7 +7,7 @@ import org.springframework.boot.autoconfigure.SpringBootApplication;
 public class PagerankApplication {
 
 	public static void main(String[] args) {
-		SpringApplication.run(SearchengineApplication.class, args);
+		SpringApplication.run(PagerankApplication.class, args);
 	}
 
 }

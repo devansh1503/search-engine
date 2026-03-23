@@ -7,7 +7,7 @@ import org.springframework.boot.autoconfigure.SpringBootApplication;
 public class AutocompleteApplication {
 
 	public static void main(String[] args) {
-		SpringApplication.run(SearchengineApplication.class, args);
+		SpringApplication.run(AutocompleteApplication.class, args);
 	}
 
 }
