@@ -54,13 +54,13 @@ public class CrawlerService {
                 }
             });
 
-            CrawledPage page = CrawledPage.builder()
-                    .url(url)
-                    .title(title)
-                    .content(text)
-                    .links(extractedLinks)
-                    .timestamp(System.currentTimeMillis())
-                    .build();
+            CrawledPage page = new CrawledPage(
+                    url,
+                    title,
+                    text,
+                    extractedLinks,
+                    System.currentTimeMillis()
+            );
 
             crawlerProducer.sendRawPage(JsonUtil.toJson(page));
 

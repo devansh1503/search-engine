@@ -1,16 +1,38 @@
 package com.devansh.common.model;
 
-import lombok.Builder;
-import lombok.Data;
-
 import java.util.List;
 
-@Data
-@Builder
 public class CrawledPage {
+
     private String url;
     private String title;
     private String content;
     private List<String> links;
     private long timestamp;
+
+    public CrawledPage() {}
+    public CrawledPage(String url, String title, String content,
+                       List<String> links, long timestamp) {
+        this.url = url;
+        this.title = title;
+        this.content = content;
+        this.links = links;
+        this.timestamp = timestamp;
+    }
+
+    public String getUrl() { return url; }
+    public void setUrl(String url) { this.url = url; }
+
+    public String getTitle() { return title; }
+    public void setTitle(String title) { this.title = title; }
+
+    public String getContent() { return content; }
+    public void setContent(String content) { this.content = content; }
+
+    public List<String> getLinks() { return links; }
+    public void setLinks(List<String> links) { this.links = links; }
+
+    public long getTimestamp() { return timestamp; }
+    public void setTimestamp(long timestamp) { this.timestamp = timestamp; }
+
 }
