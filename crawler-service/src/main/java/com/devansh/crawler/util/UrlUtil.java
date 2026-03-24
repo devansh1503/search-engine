@@ -7,7 +7,7 @@ public class UrlUtil {
     public static String normalize(String baseUrl, String link){
         try {
             URI base =  new URI(baseUrl);
-            URI resolved = new URI(link);
+            URI resolved = base.resolve(link);
             return resolved.toString();
         } catch (Exception e) {
             return null;
