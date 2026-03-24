@@ -10,21 +10,25 @@ import org.jsoup.select.Elements;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
+import java.net.URI;
 import java.util.*;
 import java.util.concurrent.ConcurrentLinkedQueue;
 
 @Service
 public class CrawlerService {
 
-    private final Set<String> visited = Collections.synchronizedSet(new HashSet<String>());
-
-
     @Autowired
     private CrawlerProducer crawlerProducer;
 
+    @Autowired
+    private VisitedUrlService visitedUrlService;
+
+    @Autowired
+    private RateLimiterService rateLimiterService;
+
     public void crawlSingle(String url){
 
-        if(url == null || visited.contains(url)) return;
+        if( url == null || visitedUrlService.isVisited(url) || !rateLimiterService.allow(getDomain(url)) ) return;
 
         try{
             System.out.println("CRAWLING: " + url);
@@ -34,7 +38,7 @@ public class CrawlerService {
                     .timeout(5000)
                     .get();
 
-            visited.add(url);
+            visitedUrlService.markVisited(url);
 
             String title = document.title();
             String text = document.body().text();
@@ -44,7 +48,7 @@ public class CrawlerService {
 
             links.forEach(link -> {
                 String normalized = UrlUtil.normalize(url, link.attr("href"));
-                if(normalized!=null && !visited.contains(normalized)){
+                if(normalized!=null && !visitedUrlService.isVisited(normalized)){
                     extractedLinks.add(normalized);
                     crawlerProducer.sendUrl(normalized);
                 }
@@ -64,6 +68,14 @@ public class CrawlerService {
         catch(Exception e) {
             System.out.println("FAILED: " + url);
             System.out.println(e.getMessage());
+        }
+    }
+
+    private String getDomain(String url) {
+        try {
+            return new URI(url).getHost();
+        } catch (Exception e) {
+            return "unknown";
         }
     }
 }
