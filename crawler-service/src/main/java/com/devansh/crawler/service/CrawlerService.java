@@ -17,60 +17,53 @@ import java.util.concurrent.ConcurrentLinkedQueue;
 public class CrawlerService {
 
     private final Set<String> visited = Collections.synchronizedSet(new HashSet<String>());
-    private final Queue<String> queue = new ConcurrentLinkedQueue<>();
 
-    private static final int MAX_PAGES = 50;
 
     @Autowired
     private CrawlerProducer crawlerProducer;
 
-    public void start(String seedUrl){
-        queue.add(seedUrl);
+    public void crawlSingle(String url){
 
-        while(!queue.isEmpty() && visited.size() < MAX_PAGES){
-            String url = queue.poll();
+        if(url == null || visited.contains(url)) return;
 
-            if(url == null || visited.contains(url)) continue;
+        try{
+            System.out.println("CRAWLING: " + url);
 
-            try{
-                System.out.println("CRAWLING: " + url);
+            Document document = Jsoup.connect(url)
+                    .userAgent("Mozilla/5.0")
+                    .timeout(5000)
+                    .get();
 
-                Document document = Jsoup.connect(url)
-                        .userAgent("Mozilla/5.0")
-                        .timeout(5000)
-                        .get();
+            visited.add(url);
 
-                visited.add(url);
+            String title = document.title();
+            String text = document.body().text();
 
-                String title = document.title();
-                String text = document.body().text();
+            Elements links = document.select("a[href]");
+            List<String> extractedLinks = new ArrayList<>();
 
-                Elements links = document.select("a[href]");
-                List<String> extractedLinks = new ArrayList<>();
+            links.forEach(link -> {
+                String normalized = UrlUtil.normalize(url, link.attr("href"));
+                if(normalized!=null && !visited.contains(normalized)){
+                    extractedLinks.add(normalized);
+                    crawlerProducer.sendUrl(normalized);
+                }
+            });
 
-                links.forEach(link -> {
-                    String normalized = UrlUtil.normalize(url, link.attr("href"));
-                    if(normalized!=null && !visited.contains(normalized)){
-                        extractedLinks.add(normalized);
-                        queue.add(normalized);
-                    }
-                });
+            CrawledPage page = CrawledPage.builder()
+                    .url(url)
+                    .title(title)
+                    .content(text)
+                    .links(extractedLinks)
+                    .timestamp(System.currentTimeMillis())
+                    .build();
 
-                CrawledPage page = CrawledPage.builder()
-                        .url(url)
-                        .title(title)
-                        .content(text)
-                        .links(extractedLinks)
-                        .timestamp(System.currentTimeMillis())
-                        .build();
+            crawlerProducer.sendRawPage(JsonUtil.toJson(page));
 
-                crawlerProducer.send(JsonUtil.toJson(page));
-
-            }
-            catch(Exception e){
-                System.out.println("FAILED: "+url);
-                System.out.println(e.getMessage());
-            }
+        }
+        catch(Exception e) {
+            System.out.println("FAILED: " + url);
+            System.out.println(e.getMessage());
         }
     }
 }

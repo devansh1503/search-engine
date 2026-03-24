@@ -7,12 +7,14 @@ import org.springframework.stereotype.Service;
 @Service
 public class CrawlerProducer {
 
-    private static final String TOPIC = "raw-pages";
-
     @Autowired
     private KafkaTemplate<String, String> kafkaTemplate;
 
-    public void send(String message) {
-        kafkaTemplate.send(TOPIC, message);
+    public void sendRawPage(String message) {
+        kafkaTemplate.send("raw-pages", message);
+    }
+
+    public void sendUrl(String url) {
+        kafkaTemplate.send("urls", url);
     }
 }

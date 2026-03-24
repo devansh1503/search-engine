@@ -1,4 +1,4 @@
-package com.devansh.searchengine;
+package com.devansh.indexer;
 
 import org.springframework.boot.SpringApplication;
 import org.springframework.boot.autoconfigure.SpringBootApplication;
