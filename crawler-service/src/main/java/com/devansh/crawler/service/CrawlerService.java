@@ -17,6 +17,9 @@ import java.util.concurrent.ConcurrentLinkedQueue;
 @Service
 public class CrawlerService {
 
+    private static final int MAX_DEPTH = 2;
+    private static final int MAX_URLS = 1000;
+
     @Autowired
     private CrawlerProducer crawlerProducer;
 
@@ -26,12 +29,16 @@ public class CrawlerService {
     @Autowired
     private RateLimiterService rateLimiterService;
 
-    public void crawlSingle(String url){
+    public void crawlSingle(String url, int depth){
 
-        if( url == null || visitedUrlService.isVisited(url) || !rateLimiterService.allow(getDomain(url)) ) return;
+        if (url == null) return;
+        if (visitedUrlService.isVisited(url)) return;
+        if (depth > MAX_DEPTH) return;
+        if (visitedUrlService.getSize() > MAX_URLS) return;
+        if(!rateLimiterService.allow(getDomain(url))) return;
 
         try{
-            System.out.println("CRAWLING: " + url);
+            System.out.println("CRAWLING: " + url + " DEPTH: " + depth);
 
             Document document = Jsoup.connect(url)
                     .userAgent("Mozilla/5.0")
@@ -50,7 +57,7 @@ public class CrawlerService {
                 String normalized = UrlUtil.normalize(url, link.attr("href"));
                 if(normalized!=null && !visitedUrlService.isVisited(normalized)){
                     extractedLinks.add(normalized);
-                    crawlerProducer.sendUrl(normalized);
+                    crawlerProducer.sendUrl(normalized, depth+1);
                 }
             });
 
@@ -59,7 +66,8 @@ public class CrawlerService {
                     title,
                     text,
                     extractedLinks,
-                    System.currentTimeMillis()
+                    System.currentTimeMillis(),
+                    depth
             );
 
             crawlerProducer.sendRawPage(JsonUtil.toJson(page));

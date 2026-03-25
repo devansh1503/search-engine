@@ -9,15 +9,17 @@ public class CrawledPage {
     private String content;
     private List<String> links;
     private long timestamp;
+    private int depth;
 
     public CrawledPage() {}
     public CrawledPage(String url, String title, String content,
-                       List<String> links, long timestamp) {
+                       List<String> links, long timestamp, int depth) {
         this.url = url;
         this.title = title;
         this.content = content;
         this.links = links;
         this.timestamp = timestamp;
+        this.depth = depth;
     }
 
     public String getUrl() { return url; }
@@ -34,5 +36,8 @@ public class CrawledPage {
 
     public long getTimestamp() { return timestamp; }
     public void setTimestamp(long timestamp) { this.timestamp = timestamp; }
+
+    public int getDepth() { return depth; }
+    public void setDepth(int depth) { this.depth = depth; }
 
 }

@@ -14,7 +14,8 @@ public class CrawlerProducer {
         kafkaTemplate.send("raw-pages", message);
     }
 
-    public void sendUrl(String url) {
-        kafkaTemplate.send("urls", url);
+    public void sendUrl(String url, int depth) {
+        String message = url + "|" + depth;
+        kafkaTemplate.send("urls", message);
     }
 }

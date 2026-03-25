@@ -11,7 +11,10 @@ public class CrawlerConsumer {
     private CrawlerService crawlerService;
 
     @KafkaListener(topics = "urls", groupId = "crawler-group")
-    public void consume(String url){
-        crawlerService.crawlSingle(url);
+    public void consume(String message){
+        String[]parts = message.split("\\|");
+        String url = parts[0];
+        int depth = parts.length>1 ? Integer.parseInt(parts[1]) : 0;
+        crawlerService.crawlSingle(url, depth);
     }
 }

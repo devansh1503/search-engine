@@ -18,4 +18,9 @@ public class VisitedUrlService {
     public void markVisited(String url) {
         stringRedisTemplate.opsForSet().add(KEY, url);
     }
+
+    public int getSize(){
+        Long size = stringRedisTemplate.opsForSet().size(KEY);
+        return size==null?0:size.intValue();
+    }
 }
