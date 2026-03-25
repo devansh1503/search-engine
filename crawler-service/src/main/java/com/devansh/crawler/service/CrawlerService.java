@@ -1,6 +1,5 @@
 package com.devansh.crawler.service;
 
-import com.devansh.autocomplete.service.AutoCompleteService;
 import com.devansh.common.model.CrawledPage;
 import com.devansh.common.util.JsonUtil;
 import com.devansh.crawler.kafka.CrawlerProducer;
@@ -29,9 +28,6 @@ public class CrawlerService {
 
     @Autowired
     private RateLimiterService rateLimiterService;
-
-    @Autowired
-    private AutoCompleteService autoCompleteService;
 
     public void crawlSingle(String url, int depth){
 
@@ -76,7 +72,6 @@ public class CrawlerService {
 
             crawlerProducer.sendRawPage(JsonUtil.toJson(page));
 
-            autoCompleteService.addTitle(title);
         }
         catch(Exception e) {
             System.out.println("FAILED: " + url);

@@ -2,7 +2,6 @@ package com.devansh.query.service;
 
 import co.elastic.clients.elasticsearch.ElasticsearchClient;
 import co.elastic.clients.elasticsearch.core.search.Hit;
-import com.devansh.autocomplete.service.AutoCompleteService;
 import com.devansh.query.model.SearchResponse;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -24,8 +23,6 @@ public class SearchService {
     @Autowired
     private StringRedisTemplate redisTemplate;
 
-    @Autowired
-    private AutoCompleteService autoCompleteService;
 
     private final ObjectMapper objectMapper = new ObjectMapper();
 
@@ -68,10 +65,21 @@ public class SearchService {
         }catch(Exception e) {
             System.out.println("SEARCH FAILED: "+e.getMessage());
         }finally {
-            autoCompleteService.incrementQuery(query);
+            incrementQuery(query);
         }
 
         return results;
+    }
+
+    public void incrementQuery(String query){
+        String normalized = normalize(query);
+        if(normalized.length() < 2) return;
+
+        redisTemplate.opsForZSet().incrementScore("autocomplete", normalized, 1);
+    }
+
+    private String normalize(String input){
+        return input==null ? "" : input.trim().toLowerCase();
     }
 
 }

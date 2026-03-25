@@ -1,4 +1,4 @@
-package com.devansh.query.controller;
+package com.devansh.autocomplete.controller;
 
 import com.devansh.autocomplete.service.AutoCompleteService;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -8,7 +8,7 @@ import java.util.List;
 
 @RestController
 @RequestMapping("/autocomplete")
-@CrossOrigin("*")
+@CrossOrigin(origins = "*")
 public class AutocompleteController {
 
     @Autowired

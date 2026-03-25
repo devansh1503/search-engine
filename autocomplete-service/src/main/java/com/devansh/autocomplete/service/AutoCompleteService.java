@@ -23,20 +23,6 @@ public class AutoCompleteService {
         return input==null ? "" : input.trim().toLowerCase();
     }
 
-    public void addTitle(String title){
-        String normalized = normalize(title);
-        if(normalized.length() < 2) return;
-
-        stringRedisTemplate.opsForZSet().add(KEY, normalized, 1);
-    }
-
-    public void incrementQuery(String query){
-        String normalized = normalize(query);
-        if(normalized.length() < 2) return;
-
-        stringRedisTemplate.opsForZSet().incrementScore(KEY, normalized, 1);
-    }
-
     public List<String> getSuggestions(String prefix){
         String normalized = normalize(prefix);
         if(normalized.length() < 2) return new ArrayList<>();
