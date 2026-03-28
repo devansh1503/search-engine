@@ -4,7 +4,14 @@ import co.elastic.clients.elasticsearch.ElasticsearchClient;
 import co.elastic.clients.elasticsearch.core.search.Hit;
 import com.devansh.query.model.SearchResponse;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import io.lettuce.core.codec.ByteArrayCodec;
+import io.lettuce.core.codec.StringCodec;
+import io.lettuce.core.output.IntegerOutput;
+import io.lettuce.core.protocol.CommandArgs;
+import io.lettuce.core.protocol.CommandType;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.data.redis.connection.RedisConnection;
+import org.springframework.data.redis.connection.lettuce.LettuceConnection;
 import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.stereotype.Service;
 
@@ -16,6 +23,12 @@ import java.util.Map;
 
 @Service
 public class SearchService {
+
+    private static final io.lettuce.core.protocol.ProtocolKeyword FT_SUGADD =
+            () -> "FT.SUGADD".getBytes();
+
+    private static final io.lettuce.core.protocol.ProtocolKeyword FT_SUGGET =
+            () -> "FT.SUGGET".getBytes();
 
     @Autowired
     private ElasticsearchClient elasticsearchClient;
@@ -75,7 +88,21 @@ public class SearchService {
         String normalized = normalize(query);
         if(normalized.length() < 2) return;
 
-        redisTemplate.opsForZSet().incrementScore("autocomplete", normalized, 1);
+        RedisConnection connection = getConnection();
+
+        ((LettuceConnection) connection).getNativeConnection().dispatch(
+                FT_SUGADD,
+                new IntegerOutput<>(ByteArrayCodec.INSTANCE),
+                new CommandArgs<>(ByteArrayCodec.INSTANCE)
+                        .addKey("autocomplete:suggest".getBytes())
+                        .addValue(normalized.getBytes())
+                        .add(1)
+                        .add("INCR")
+        );
+    }
+
+    private RedisConnection getConnection(){
+        return redisTemplate.getConnectionFactory().getConnection();
     }
 
     private String normalize(String input){

@@ -3,12 +3,25 @@ package com.devansh.indexer.service;
 import co.elastic.clients.elasticsearch.ElasticsearchClient;
 import com.devansh.common.model.CrawledPage;
 import com.devansh.common.util.JsonUtil;
+import io.lettuce.core.codec.ByteArrayCodec;
+import io.lettuce.core.codec.StringCodec;
+import io.lettuce.core.output.IntegerOutput;
+import io.lettuce.core.protocol.CommandArgs;
+import io.lettuce.core.protocol.CommandType;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.data.redis.connection.RedisConnection;
+import org.springframework.data.redis.connection.lettuce.LettuceConnection;
 import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.stereotype.Service;
 
 @Service
 public class IndexerService {
+
+    private static final io.lettuce.core.protocol.ProtocolKeyword FT_SUGADD =
+            () -> "FT.SUGADD".getBytes();
+
+    private static final io.lettuce.core.protocol.ProtocolKeyword FT_SUGGET =
+            () -> "FT.SUGGET".getBytes();
 
     @Autowired
     private ElasticsearchClient esClient;
@@ -42,6 +55,19 @@ public class IndexerService {
         String normalized = normalize(title);
         if(normalized.length() < 2) return;
 
-        stringRedisTemplate.opsForZSet().add("autocomplete", normalized, 1);
+        RedisConnection connection = getConnection();
+
+        ((LettuceConnection) connection).getNativeConnection().dispatch(
+                FT_SUGADD,
+                new IntegerOutput<>(ByteArrayCodec.INSTANCE),
+                new CommandArgs<>(ByteArrayCodec.INSTANCE)
+                        .addKey("autocomplete:suggest".getBytes())
+                        .addValue(normalized.getBytes())
+                        .add(1)
+        );
+    }
+
+    public RedisConnection getConnection(){
+        return stringRedisTemplate.getConnectionFactory().getConnection();
     }
 }
