@@ -55,10 +55,21 @@ public class SearchService {
             co.elastic.clients.elasticsearch.core.SearchResponse<Map> response = elasticsearchClient.search(s -> s
                     .index("pages")
                     .query(q -> q
-                            .multiMatch(m -> m
-                                    .query(query)
-                                    .fields("title", "content")
+                            .functionScore(fs -> fs
+                                    .query(q2 -> q2
+                                            .multiMatch(m -> m
+                                                    .query(query)
+                                                    .fields("title", "content")
+                                            )
+                                    )
+                                    .functions(f -> f
+                                            .fieldValueFactor(v -> v
+                                                    .field("pagerank")
+                                                    .missing(1.0)
+                                            )
+                                    )
                             )
+
                     ),
                     Map.class
             );
