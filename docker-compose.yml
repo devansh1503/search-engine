@@ -50,6 +50,8 @@ services:
     depends_on:
       - kafka-searchengine
       - elasticsearch
+    environment:
+      OPENAI_API_KEY: ${OPENAI_API_KEY}
 
   query-service:
     build:
@@ -77,10 +79,16 @@ services:
       - kafka-searchengine
 
   embedding-service:
-    build:
-      context: ./embedding-service
+    image: docker/model-runner:latest
+    container_name: embedding-service
+    command: >
+      sh -c "
+      docker model pull ai/qwen3-embedding &&
+      docker model run ai/qwen3-embedding
+      "
     ports:
-      - "8001:8000"
+      - "12434:12434"
+    restart: always
 
 volumes:
   kafka_data:

@@ -9,4 +9,5 @@ public class SearchResponse {
     private String url;
     private String title;
     private String snippet;
+    private String content;
 }

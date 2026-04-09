@@ -9,6 +9,7 @@ import io.lettuce.core.codec.StringCodec;
 import io.lettuce.core.output.IntegerOutput;
 import io.lettuce.core.protocol.CommandArgs;
 import io.lettuce.core.protocol.CommandType;
+import org.springframework.ai.chat.client.ChatClient;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.data.redis.connection.RedisConnection;
 import org.springframework.data.redis.connection.lettuce.LettuceConnection;
@@ -21,6 +22,7 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
+import java.util.stream.Collectors;
 
 @Service
 public class SearchService {
@@ -40,6 +42,9 @@ public class SearchService {
     @Autowired
     private RestTemplate restTemplate;
 
+    @Autowired
+    private ChatClient chatClient;
+
 
     private final ObjectMapper objectMapper = new ObjectMapper();
 
@@ -57,8 +62,11 @@ public class SearchService {
 
         try{
             Map res = restTemplate.postForObject(
-                    "http://embedding-service:8000/embed",
-                    Map.of("text", query),
+                    "http://embedding-service:12434/engines/v1/embeddings",
+                    Map.of(
+                            "model", "ai/qwen3-embedding",
+                            "input", query
+                    ),
                     Map.class
             );
             List<?> rawVector = (List<?>) res.get("embeddings");
@@ -99,7 +107,7 @@ public class SearchService {
 
                 String snippet = content != null && content.length() > 150 ? content.substring(0, 150) : content;
 
-                results.add(new SearchResponse(url, title, snippet));
+                results.add(new SearchResponse(url, title, snippet, content));
             }
 
             redisTemplate.opsForValue().set(query, objectMapper.writeValueAsString(results));
@@ -129,6 +137,52 @@ public class SearchService {
         );
     }
 
+    public String searchAiSummary(String query) {
+        String normalized = normalize(query);
+        List<SearchResponse> results = search(normalized);
+
+        String context = results.stream()
+                .limit(5)
+                .map(r -> {
+                    String title = r.getTitle() != null ? r.getTitle() : "";
+                    String content = r.getContent() != null ? r.getContent() : "";
+
+                    // Trim content to avoid token explosion
+                    content = content.length() > 500 ? content.substring(0, 500) : content;
+
+                    return """
+                   Title: %s
+                   Content: %s
+                   """.formatted(title, content);
+                })
+                .collect(Collectors.joining("\n\n---\n\n"));
+
+        String prompt = """
+                You are a search assistant.
+                
+                Answer the user's query using only the information provided in the context below.
+                Do Not Make up information.
+                If the answer is not present in the context, say: "I could not find relevant information."
+                
+                Keep the answer clear and concise.
+                
+                Context:
+                %s
+                
+                Query:
+                %s
+                
+                Answer:
+                """.formatted(context, query);
+
+        String response = chatClient.prompt()
+                .user(prompt)
+                .call()
+                .content()
+                .trim();
+
+        return response;
+    }
     private RedisConnection getConnection(){
         return redisTemplate.getConnectionFactory().getConnection();
     }
