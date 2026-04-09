@@ -14,6 +14,7 @@ import org.springframework.data.redis.connection.RedisConnection;
 import org.springframework.data.redis.connection.lettuce.LettuceConnection;
 import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.stereotype.Service;
+import org.springframework.web.client.RestTemplate;
 
 import java.lang.reflect.Array;
 import java.util.ArrayList;
@@ -36,6 +37,9 @@ public class SearchService {
     @Autowired
     private StringRedisTemplate redisTemplate;
 
+    @Autowired
+    private RestTemplate restTemplate;
+
 
     private final ObjectMapper objectMapper = new ObjectMapper();
 
@@ -52,20 +56,33 @@ public class SearchService {
         List<SearchResponse> results = new ArrayList<>();
 
         try{
+            Map res = restTemplate.postForObject(
+                    "http://embedding-service:8000/embed",
+                    Map.of("text", query),
+                    Map.class
+            );
+            List<?> rawVector = (List<?>) res.get("embeddings");
+            List<Double> queryVector = rawVector.stream()
+                    .map(v -> ((Number) v).doubleValue())
+                    .toList();
+
             co.elastic.clients.elasticsearch.core.SearchResponse<Map> response = elasticsearchClient.search(s -> s
                     .index("pages")
                     .query(q -> q
-                            .functionScore(fs -> fs
+                            .scriptScore(ss -> ss
                                     .query(q2 -> q2
                                             .multiMatch(m -> m
                                                     .query(query)
                                                     .fields("title", "content")
                                             )
                                     )
-                                    .functions(f -> f
-                                            .fieldValueFactor(v -> v
-                                                    .field("pagerank")
-                                                    .missing(1.0)
+                                    .script(sc -> sc
+                                            .inline(in -> in
+                                                    .source("""
+                                                            double vectorScore = cosineSimilarity(params.query_vector, 'embedding');
+                                                            double pagerankScore = doc['pagerank'].size() == 0 ? 1.0 : doc['pagerank'].value;
+                                                            return vectorScore +  pagerankScore + 1.0;
+                                                            """)
                                             )
                                     )
                             )

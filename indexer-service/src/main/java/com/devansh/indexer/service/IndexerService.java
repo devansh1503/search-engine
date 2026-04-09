@@ -14,6 +14,9 @@ import org.springframework.data.redis.connection.lettuce.LettuceConnection;
 import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.stereotype.Service;
 
+import org.springframework.web.client.RestTemplate;
+import java.util.Map;
+
 @Service
 public class IndexerService {
 
@@ -29,14 +32,32 @@ public class IndexerService {
     @Autowired
     private StringRedisTemplate stringRedisTemplate;
 
+    @Autowired
+    private RestTemplate restTemplate;
+
     public void index(String json){
         CrawledPage page = JsonUtil.fromJson(json, CrawledPage.class);
 
         try{
+            String text = page.getTitle() + " " + page.getContent();
+
+            Map response = restTemplate.postForObject(
+                    "http://embedding-service:8000/embed",
+                    Map.of("text", text),
+                    Map.class
+            );
+
+            Object embedding = response.get("embedding");
+            Map<String, Object> doc = Map.of(
+                    "url", page.getUrl(),
+                    "title", page.getTitle(),
+                    "content", page.getContent(),
+                    "embedding", embedding
+            );
             esClient.index(i -> i
                     .index("pages")
                     .id(page.getUrl())
-                    .document(page)
+                    .document(doc)
             );
             System.out.println("INDEXED: "+ page.getUrl());
         }
