@@ -68,41 +68,47 @@ public class SearchService {
                     Map.class
             );
 
-            List<?> rawVector = (List<?>) res.get("embedding");
+            List<?> queryVector = (List<?>) res.get("embedding");
 
-            Map faissRes = restTemplate.postForObject(
-                    "http://faiss-service:8002/search",
-                    Map.of("embedding", rawVector, "k", 20),
-                    Map.class
-            );
-
-            List<Map<String, Object>> vectorResult =
-                    (List<Map<String, Object>>) faissRes.get("results");
-
-            Map<String, Double> vectorScores = new HashMap<>();
-            for( Map<String, Object> result : vectorResult ) {
-                vectorScores.put(
-                        (String) result.get("url"),
-                        1 / (1 + (Double) result.get("score"))
-                );
-            }
+//            Map faissRes = restTemplate.postForObject(
+//                    "http://faiss-service:8002/search",
+//                    Map.of("embedding", rawVector, "k", 20),
+//                    Map.class
+//            );
+//
+//            List<Map<String, Object>> vectorResult =
+//                    (List<Map<String, Object>>) faissRes.get("results");
+//
+//            Map<String, Double> vectorScores = new HashMap<>();
+//            for( Map<String, Object> result : vectorResult ) {
+//                vectorScores.put(
+//                        (String) result.get("url"),
+//                        1 / (1 + (Double) result.get("score"))
+//                );
+//            }
 
             // BM25 + Pagerank ES Result-
 
-            co.elastic.clients.elasticsearch.core.SearchResponse<Map> esResponse = elasticsearchClient.search(s -> s
+            co.elastic.clients.elasticsearch.core.SearchResponse<Map> esResponse =
+                    elasticsearchClient.search(s -> s
                     .index("pages")
                     .query(q -> q
-                            .functionScore(fs -> fs
+                            .scriptScore(ss -> ss
                                     .query(q2 -> q2
                                             .multiMatch(m -> m
                                                     .query(query)
                                                     .fields("title", "content")
                                             )
                                     )
-                                    .functions(f -> f
-                                            .fieldValueFactor(v -> v
-                                                    .field("pagerank")
-                                                    .missing(1.0)
+                                    .script(sc -> sc
+                                            .inline(m -> m
+                                                    .source("""
+                                                            double cosine = cosineSimilarity(params.query_vector, 'embedding');
+                                                            double pr = doc['pagerank'].size() == 0 ? 1.0 : doc['pagerank'].value;
+                                                            
+                                                            return 0.3 * _score + 0.6 * (cosine + 1.0) + 0.1 * Math.log(1 + pr);
+                                                            """)
+                                                    .params("query_vector", JsonData.of(queryVector))
                                             )
                                     )
                             )
@@ -116,10 +122,7 @@ public class SearchService {
                 Map source = hit.source();
                 String url = (String) source.get("url");
 
-                double bm25 = hit.score() != null ? hit.score() : 0;
-                double vector = vectorScores.getOrDefault(url, 0.0);
-
-                double finalScore = vector;
+                double finalScore = hit.score();
 
                 String content = (String) source.get("content");
                 String snippet = content != null && content.length() > 150 ? content.substring(0, 150) : content;
@@ -164,26 +167,28 @@ public class SearchService {
     }
 
     public String searchAiSummary(List<SearchResponse> results, String query) {
-        System.out.println(query);
         String context = results.stream()
                 .limit(5)
                 .map(r -> {
                     String title = r.getTitle() != null ? r.getTitle() : "";
+                    String content = r.getContent() != null ? r.getContent() : "";
                     return """
                    Title: %s
-                   """.formatted(title);
+                   Content: %s
+                   """.formatted(title, content);
                 })
                 .collect(Collectors.joining("\n\n---\n\n"));
 
         String prompt = """
                 You are a search assistant.
                 
-                Answer the user's query in context to the titles mentioned in the context.
-                In case the titles are irrelevant, you may provide information just base on the query.
-                Make sure this always a response.
+                Answer the question using ONLY the provided context.
                 
-                Keep the answer clear and concise. Not too long, and Not too Short, Just a Quick Read.
-                Provide Examples if possible.
+                Rules:
+                - Do NOT make up information
+                - If the answer is not present, say: "I don't know"
+                - Be concise and clear
+                - If possible, combine information from multiple sources
                 
                 Context:
                 %s
@@ -193,18 +198,6 @@ public class SearchService {
                 
                 Answer:
                 """.formatted(context, query);
-        System.out.println(prompt);
-//        Map<String, Object> request = Map.of(
-//                "model", "llama3",
-//                "prompt", prompt,
-//                "stream", false
-//        );
-//
-//        Map response = restTemplate.postForObject(
-//                "http://embedding-service:11434/api/generate",
-//                request,
-//                Map.class
-//        );
 
         String response = chatClient.prompt()
                 .user(prompt)

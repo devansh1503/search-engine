@@ -41,7 +41,7 @@ public class IndexerService {
         CrawledPage page = JsonUtil.fromJson(json, CrawledPage.class);
 
         try{
-            String text = page.getTitle();
+            String text = page.getTitle() + page.getContent().substring(0, Math.min(page.getContent().length(), 400));
 
             Map response = restTemplate.postForObject(
                     "http://embedding-service:11434/api/embeddings",
@@ -58,19 +58,20 @@ public class IndexerService {
                 throw new RuntimeException("Embedding failed");
             }
 
-            restTemplate.postForObject(
-                    "http://faiss-service:8002/add",
-                    Map.of(
-                            "url", page.getUrl(),
-                            "embedding", embedding
-                    ),
-                    Map.class
-            );
+//            restTemplate.postForObject(
+//                    "http://faiss-service:8002/add",
+//                    Map.of(
+//                            "url", page.getUrl(),
+//                            "embedding", embedding
+//                    ),
+//                    Map.class
+//            );
 
             Map<String, Object> doc = Map.of(
                     "url", page.getUrl(),
                     "title", page.getTitle(),
-                    "content", page.getContent()
+                    "content", page.getContent(),
+                    "embedding", embedding
             );
             esClient.index(i -> i
                     .index("pages")

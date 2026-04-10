@@ -26,6 +26,11 @@ services:
       - xpack.security.enabled=false
     ports:
       - "9200:9200"
+    healthcheck:
+      test: [ "CMD", "curl", "-f", "http://localhost:9200" ]
+      interval: 10s
+      timeout: 5s
+      retries: 5
     volumes:
       - es_data:/usr/share/elasticsearch/data
 
@@ -48,8 +53,10 @@ services:
       context: .
       dockerfile: indexer-service/Dockerfile
     depends_on:
-      - kafka-searchengine
-      - elasticsearch
+      kafka-searchengine:
+        condition: service_started
+      elasticsearch:
+        condition: service_healthy
 
   query-service:
     build:
@@ -94,11 +101,11 @@ services:
        wait"
     restart: always
 
-  faiss-service:
-    build:
-      context: ./faiss-service
-    ports:
-      - "8002:8002"
+#  faiss-service:
+#    build:
+#      context: ./faiss-service
+#    ports:
+#      - "8002:8002"
 #  embedding-service:
 #    build:
 #      context: ./embedding-service

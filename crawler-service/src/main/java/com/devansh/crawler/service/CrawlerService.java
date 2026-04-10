@@ -44,10 +44,11 @@ public class CrawlerService {
             System.out.println("Skipping- Visited URL full: " + visitedUrlService.getSize() + " Max URLS: " + MAX_URLS);
             return;
         }
-//        if(!rateLimiterService.allow(getDomain(url))){
-//            System.out.println("Skipping- Rate Limiting: " + url);
-//            return;
-//        }
+        if(!rateLimiterService.allow(getDomain(url))){
+            System.out.println("Skipping- Rate Limiting: " + url);
+            crawlerProducer.sendUrl(url, depth);
+            return;
+        }
 
         try{
             System.out.println("CRAWLING: " + url + " DEPTH: " + depth);
@@ -70,11 +71,7 @@ public class CrawlerService {
             links.forEach(link -> {
                 String normalized = UrlUtil.normalize(url, link.attr("href"));
                 String childDomain = getDomain(normalized);
-                System.out.println("############################################");
-                System.out.println("PARENT DOMAIN: " + domain);
-                System.out.println("CHILD DOMAIN: " + childDomain);
                 if(normalized!=null && !visitedUrlService.isVisited(normalized) && childDomain.equals(domain)){
-                    System.out.println("Adding to crawler: "+normalized);
                     extractedLinks.add(normalized);
                     crawlerProducer.sendUrl(normalized, depth+1);
                 }
