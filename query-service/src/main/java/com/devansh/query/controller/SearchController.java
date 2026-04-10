@@ -22,8 +22,9 @@ public class SearchController {
     }
 
     @PostMapping("/ai-summary")
-    public ResponseEntity<String> searchAiSummary(@RequestParam String query) {
-        String response = searchService.searchAiSummary(query);
+    public ResponseEntity<String> searchAiSummary(@RequestParam String query, @RequestBody List<SearchResponse> topResults) {
+        System.out.println(query);
+        String response = searchService.searchAiSummary(topResults, query);
         return ResponseEntity.ok(response);
     }
 }

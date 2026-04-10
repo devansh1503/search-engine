@@ -15,7 +15,7 @@ public class PageRankScheduler {
     @Autowired
     private ESUpdater esUpdater;
 
-    @Scheduled(fixedRate = 60000)
+    @Scheduled(fixedRate = 30000)
     public void run(){
         System.out.println("PageRank Scheduler Running...");
         pageRankService.compute();

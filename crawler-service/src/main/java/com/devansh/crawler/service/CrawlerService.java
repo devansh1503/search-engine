@@ -17,7 +17,7 @@ import java.util.concurrent.ConcurrentLinkedQueue;
 @Service
 public class CrawlerService {
 
-    private static final int MAX_DEPTH = 2;
+    private static final int MAX_DEPTH = 10;
     private static final int MAX_URLS = 100000;
 
     @Autowired
@@ -32,13 +32,27 @@ public class CrawlerService {
     public void crawlSingle(String url, int depth){
 
         if (url == null) return;
-        if (visitedUrlService.isVisited(url)) return;
-        if (depth > MAX_DEPTH) return;
-        if (visitedUrlService.getSize() > MAX_URLS) return;
-        if(!rateLimiterService.allow(getDomain(url))) return;
+        if (visitedUrlService.isVisited(url)){
+            System.out.println("Skipping- Already Visited url: " + url);
+            return;
+        }
+        if (depth > MAX_DEPTH){
+            System.out.println("Skipping- Depth exceeded " + depth+" Max Depth: " + MAX_DEPTH);
+            return;
+        }
+        if (visitedUrlService.getSize() > MAX_URLS){
+            System.out.println("Skipping- Visited URL full: " + visitedUrlService.getSize() + " Max URLS: " + MAX_URLS);
+            return;
+        }
+//        if(!rateLimiterService.allow(getDomain(url))){
+//            System.out.println("Skipping- Rate Limiting: " + url);
+//            return;
+//        }
 
         try{
             System.out.println("CRAWLING: " + url + " DEPTH: " + depth);
+
+            String domain = getDomain(url);
 
             Document document = Jsoup.connect(url)
                     .userAgent("Mozilla/5.0")
@@ -55,7 +69,12 @@ public class CrawlerService {
 
             links.forEach(link -> {
                 String normalized = UrlUtil.normalize(url, link.attr("href"));
-                if(normalized!=null && !visitedUrlService.isVisited(normalized)){
+                String childDomain = getDomain(normalized);
+                System.out.println("############################################");
+                System.out.println("PARENT DOMAIN: " + domain);
+                System.out.println("CHILD DOMAIN: " + childDomain);
+                if(normalized!=null && !visitedUrlService.isVisited(normalized) && childDomain.equals(domain)){
+                    System.out.println("Adding to crawler: "+normalized);
                     extractedLinks.add(normalized);
                     crawlerProducer.sendUrl(normalized, depth+1);
                 }

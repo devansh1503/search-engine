@@ -50,8 +50,6 @@ services:
     depends_on:
       - kafka-searchengine
       - elasticsearch
-    environment:
-      OPENAI_API_KEY: ${OPENAI_API_KEY}
 
   query-service:
     build:
@@ -61,6 +59,8 @@ services:
       - "8080:8080"
     depends_on:
       - elasticsearch
+    environment:
+      OPENAI_API_KEY: ${OPENAI_API_KEY}
 
   pagerank-service:
     build:
@@ -94,6 +94,11 @@ services:
        wait"
     restart: always
 
+  faiss-service:
+    build:
+      context: ./faiss-service
+    ports:
+      - "8002:8002"
 #  embedding-service:
 #    build:
 #      context: ./embedding-service

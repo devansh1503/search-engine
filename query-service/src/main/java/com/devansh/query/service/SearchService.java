@@ -19,10 +19,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.web.client.RestTemplate;
 
 import java.lang.reflect.Array;
-import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.List;
-import java.util.Map;
+import java.util.*;
 import java.util.stream.Collectors;
 
 @Service
@@ -72,32 +69,41 @@ public class SearchService {
             );
 
             List<?> rawVector = (List<?>) res.get("embedding");
-            List<Double> queryVector = rawVector.stream()
-                    .map(v -> ((Number) v).doubleValue())
-                    .toList();
 
+            Map faissRes = restTemplate.postForObject(
+                    "http://faiss-service:8002/search",
+                    Map.of("embedding", rawVector, "k", 20),
+                    Map.class
+            );
 
-            co.elastic.clients.elasticsearch.core.SearchResponse<Map> response = elasticsearchClient.search(s -> s
+            List<Map<String, Object>> vectorResult =
+                    (List<Map<String, Object>>) faissRes.get("results");
+
+            Map<String, Double> vectorScores = new HashMap<>();
+            for( Map<String, Object> result : vectorResult ) {
+                vectorScores.put(
+                        (String) result.get("url"),
+                        1 / (1 + (Double) result.get("score"))
+                );
+            }
+
+            // BM25 + Pagerank ES Result-
+
+            co.elastic.clients.elasticsearch.core.SearchResponse<Map> esResponse = elasticsearchClient.search(s -> s
                     .index("pages")
                     .query(q -> q
-                            .scriptScore(ss -> ss
+                            .functionScore(fs -> fs
                                     .query(q2 -> q2
                                             .multiMatch(m -> m
                                                     .query(query)
                                                     .fields("title", "content")
                                             )
                                     )
-                                    .script(sc -> sc
-                                            .inline(in -> in
-                                                    .source("""
-                                                            double vectorScore = cosineSimilarity(params.query_vector, 'embedding');
-                                                            double pagerankScore = doc['pagerank'].size() == 0 ? 1.0 : doc['pagerank'].value;
-                                                            return vectorScore +  pagerankScore + 1.0;
-                                                            """
-                                                    )
-                                                    .params(Map.of("query_vector", JsonData.of(queryVector)))
+                                    .functions(f -> f
+                                            .fieldValueFactor(v -> v
+                                                    .field("pagerank")
+                                                    .missing(1.0)
                                             )
-
                                     )
                             )
 
@@ -105,16 +111,30 @@ public class SearchService {
                     Map.class
             );
 
-            for(Hit<Map>hit : response.hits().hits()){
+
+            for(Hit<Map> hit : esResponse.hits().hits()) {
                 Map source = hit.source();
                 String url = (String) source.get("url");
-                String title = (String) source.get("title");
-                String content = (String) source.get("content");
 
+                double bm25 = hit.score() != null ? hit.score() : 0;
+                double vector = vectorScores.getOrDefault(url, 0.0);
+
+                double finalScore = vector;
+
+                String content = (String) source.get("content");
                 String snippet = content != null && content.length() > 150 ? content.substring(0, 150) : content;
 
-                results.add(new SearchResponse(url, title, snippet, content));
+                results.add(new SearchResponse(
+                        url,
+                        (String) source.get("title"),
+                        content,
+                        snippet,
+                        finalScore
+                ));
             }
+
+            results.sort((a, b) -> Double.compare(b.getScore(), a.getScore()));
+
 
             redisTemplate.opsForValue().set(query, objectMapper.writeValueAsString(results));
         }catch(Exception e) {
@@ -143,35 +163,27 @@ public class SearchService {
         );
     }
 
-    public String searchAiSummary(String query) {
-        String normalized = normalize(query);
-        System.out.println(normalized);
-        List<SearchResponse> results = search(normalized);
-
+    public String searchAiSummary(List<SearchResponse> results, String query) {
+        System.out.println(query);
         String context = results.stream()
                 .limit(5)
                 .map(r -> {
                     String title = r.getTitle() != null ? r.getTitle() : "";
-                    String content = r.getContent() != null ? r.getContent() : "";
-
-                    // Trim content to avoid token explosion
-                    content = content.length() > 500 ? content.substring(0, 500) : content;
-
                     return """
                    Title: %s
-                   Content: %s
-                   """.formatted(title, content);
+                   """.formatted(title);
                 })
                 .collect(Collectors.joining("\n\n---\n\n"));
 
         String prompt = """
                 You are a search assistant.
                 
-                Answer the user's query using only the information provided in the context below.
-                Do Not Make up information.
-                If the answer is not present in the context, say: "I could not find relevant information."
+                Answer the user's query in context to the titles mentioned in the context.
+                In case the titles are irrelevant, you may provide information just base on the query.
+                Make sure this always a response.
                 
-                Keep the answer clear and concise.
+                Keep the answer clear and concise. Not too long, and Not too Short, Just a Quick Read.
+                Provide Examples if possible.
                 
                 Context:
                 %s
@@ -182,24 +194,25 @@ public class SearchService {
                 Answer:
                 """.formatted(context, query);
         System.out.println(prompt);
-        Map<String, Object> request = Map.of(
-                "model", "llama3",
-                "prompt", prompt
-        );
+//        Map<String, Object> request = Map.of(
+//                "model", "llama3",
+//                "prompt", prompt,
+//                "stream", false
+//        );
+//
+//        Map response = restTemplate.postForObject(
+//                "http://embedding-service:11434/api/generate",
+//                request,
+//                Map.class
+//        );
 
-        Map response = restTemplate.postForObject(
-                "http://embedding-service:11434/api/generate",
-                request,
-                Map.class
-        );
-
-//        String response = chatClient.prompt()
-//                .user(prompt)
-//                .call()
-//                .content()
-//                .trim();
+        String response = chatClient.prompt()
+                .user(prompt)
+                .call()
+                .content()
+                .trim();
         System.out.println(response);
-        return (String) response.get("response");
+        return response;
     }
     private RedisConnection getConnection(){
         return redisTemplate.getConnectionFactory().getConnection();

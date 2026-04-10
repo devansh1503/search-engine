@@ -10,4 +10,5 @@ public class SearchResponse {
     private String title;
     private String snippet;
     private String content;
+    private Double score;
 }

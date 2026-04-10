@@ -15,6 +15,8 @@ import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.stereotype.Service;
 
 import org.springframework.web.client.RestTemplate;
+
+import java.util.List;
 import java.util.Map;
 
 @Service
@@ -39,7 +41,7 @@ public class IndexerService {
         CrawledPage page = JsonUtil.fromJson(json, CrawledPage.class);
 
         try{
-            String text = page.getTitle() + " " + page.getContent();
+            String text = page.getTitle();
 
             Map response = restTemplate.postForObject(
                     "http://embedding-service:11434/api/embeddings",
@@ -50,12 +52,25 @@ public class IndexerService {
                     Map.class
             );
 
-            Object embedding = response.get("embedding");
+            List<?> embedding = (List<?>) response.get("embedding");
+
+            if(embedding == null || embedding.isEmpty()){
+                throw new RuntimeException("Embedding failed");
+            }
+
+            restTemplate.postForObject(
+                    "http://faiss-service:8002/add",
+                    Map.of(
+                            "url", page.getUrl(),
+                            "embedding", embedding
+                    ),
+                    Map.class
+            );
+
             Map<String, Object> doc = Map.of(
                     "url", page.getUrl(),
                     "title", page.getTitle(),
-                    "content", page.getContent(),
-                    "embedding", embedding
+                    "content", page.getContent()
             );
             esClient.index(i -> i
                     .index("pages")
