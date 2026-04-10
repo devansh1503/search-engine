@@ -42,10 +42,10 @@ public class IndexerService {
             String text = page.getTitle() + " " + page.getContent();
 
             Map response = restTemplate.postForObject(
-                    "http://embedding-service:12434/engines/v1/embeddings",
+                    "http://embedding-service:11434/api/embeddings",
                     Map.of(
-                            "model", "ai/qwen3-embedding",
-                            "input", text
+                            "model", "nomic-embed-text",
+                            "prompt", text
                     ),
                     Map.class
             );

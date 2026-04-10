@@ -79,18 +79,29 @@ services:
       - kafka-searchengine
 
   embedding-service:
-    image: docker/model-runner:latest
+    image: ollama/ollama
     container_name: embedding-service
-    command: >
-      sh -c "
-      docker model pull ai/qwen3-embedding &&
-      docker model run ai/qwen3-embedding
-      "
     ports:
-      - "12434:12434"
+      - "11434:11434"
+    volumes:
+      - ollama_data:/root/.ollama
+    entrypoint: [ "/bin/sh", "-c" ]
+    command: >
+      "ollama serve &
+       sleep 5 &&
+       ollama pull nomic-embed-text &&
+       ollama pull llama3 &&
+       wait"
     restart: always
+
+#  embedding-service:
+#    build:
+#      context: ./embedding-service
+#    ports:
+#      - "8001:8000"
 
 volumes:
   kafka_data:
   redis_data:
   es_data:
+  ollama_data:

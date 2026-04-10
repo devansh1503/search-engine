@@ -2,6 +2,7 @@ package com.devansh.query.service;
 
 import co.elastic.clients.elasticsearch.ElasticsearchClient;
 import co.elastic.clients.elasticsearch.core.search.Hit;
+import co.elastic.clients.json.JsonData;
 import com.devansh.query.model.SearchResponse;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import io.lettuce.core.codec.ByteArrayCodec;
@@ -62,17 +63,19 @@ public class SearchService {
 
         try{
             Map res = restTemplate.postForObject(
-                    "http://embedding-service:12434/engines/v1/embeddings",
+                    "http://embedding-service:11434/api/embeddings",
                     Map.of(
-                            "model", "ai/qwen3-embedding",
-                            "input", query
+                            "model", "nomic-embed-text",
+                            "prompt", query
                     ),
                     Map.class
             );
-            List<?> rawVector = (List<?>) res.get("embeddings");
+
+            List<?> rawVector = (List<?>) res.get("embedding");
             List<Double> queryVector = rawVector.stream()
                     .map(v -> ((Number) v).doubleValue())
                     .toList();
+
 
             co.elastic.clients.elasticsearch.core.SearchResponse<Map> response = elasticsearchClient.search(s -> s
                     .index("pages")
@@ -90,8 +93,11 @@ public class SearchService {
                                                             double vectorScore = cosineSimilarity(params.query_vector, 'embedding');
                                                             double pagerankScore = doc['pagerank'].size() == 0 ? 1.0 : doc['pagerank'].value;
                                                             return vectorScore +  pagerankScore + 1.0;
-                                                            """)
+                                                            """
+                                                    )
+                                                    .params(Map.of("query_vector", JsonData.of(queryVector)))
                                             )
+
                                     )
                             )
 
@@ -112,7 +118,7 @@ public class SearchService {
 
             redisTemplate.opsForValue().set(query, objectMapper.writeValueAsString(results));
         }catch(Exception e) {
-            System.out.println("SEARCH FAILED: "+e.getMessage());
+            System.out.println("SEARCH FAILED BECAUSE: "+e.getMessage());
         }finally {
             incrementQuery(query);
         }
@@ -139,6 +145,7 @@ public class SearchService {
 
     public String searchAiSummary(String query) {
         String normalized = normalize(query);
+        System.out.println(normalized);
         List<SearchResponse> results = search(normalized);
 
         String context = results.stream()
@@ -174,14 +181,25 @@ public class SearchService {
                 
                 Answer:
                 """.formatted(context, query);
+        System.out.println(prompt);
+        Map<String, Object> request = Map.of(
+                "model", "llama3",
+                "prompt", prompt
+        );
 
-        String response = chatClient.prompt()
-                .user(prompt)
-                .call()
-                .content()
-                .trim();
+        Map response = restTemplate.postForObject(
+                "http://embedding-service:11434/api/generate",
+                request,
+                Map.class
+        );
 
-        return response;
+//        String response = chatClient.prompt()
+//                .user(prompt)
+//                .call()
+//                .content()
+//                .trim();
+        System.out.println(response);
+        return (String) response.get("response");
     }
     private RedisConnection getConnection(){
         return redisTemplate.getConnectionFactory().getConnection();
