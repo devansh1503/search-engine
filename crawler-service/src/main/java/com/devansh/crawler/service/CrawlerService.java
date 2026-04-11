@@ -63,7 +63,17 @@ public class CrawlerService {
             visitedUrlService.markVisited(url);
 
             String title = document.title();
-            String text = document.body().text();
+            Elements elements = document.select("p");
+            StringBuilder contentBuilder = new StringBuilder();
+
+            for(var p : elements){
+                String para = p.text();
+
+                if(para.length() > 50) {
+                    contentBuilder.append(para).append(" ");
+                }
+            }
+            String text = contentBuilder.toString();
 
             Elements links = document.select("a[href]");
             List<String> extractedLinks = new ArrayList<>();
