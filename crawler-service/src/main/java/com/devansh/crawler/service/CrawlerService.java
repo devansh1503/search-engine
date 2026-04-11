@@ -17,7 +17,7 @@ import java.util.concurrent.ConcurrentLinkedQueue;
 @Service
 public class CrawlerService {
 
-    private static final int MAX_DEPTH = 10;
+    private static final int MAX_DEPTH = 2;
     private static final int MAX_URLS = 100000;
 
     @Autowired

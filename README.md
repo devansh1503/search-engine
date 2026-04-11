@@ -13,16 +13,22 @@ This project simulates a real-world search engine pipeline:
 - Provide search with ranking  
 - Support autocomplete suggestions  
 - Compute PageRank for relevance  
+- Semantic search using vector embeddings
+- AI-powered answers using Retrieval-Augmented Generation (RAG)
 
 ---
 
 ## 🧠 Architecture
 
-Crawler → Kafka → Indexer → Elasticsearch
-                 ↓
-           Pagerank Service
+
+Crawler → Kafka → Indexer → Elasticsearch (BM25 + Vector)
+↓
+Pagerank Service
 
 Query Service → Elasticsearch + Redis (cache)
+→ Embedding Service (Ollama)
+→ LLM (AI Summary - RAG)
+
 Autocomplete Service → Redis (FT.SUG)
 
 
@@ -30,14 +36,16 @@ Autocomplete Service → Redis (FT.SUG)
 
 ## ⚙️ Tech Stack
 
-| Component        | Technology                     |
-|-----------------|-------------------------------|
-| Backend         | Spring Boot (Java 21)         |
-| Messaging       | Kafka                         |
-| Search Engine   | Elasticsearch                 |
-| Cache / Store   | Redis (Redis Stack)           |
-| Parsing         | Jsoup                         |
+| Component | Technology                     |
+|-|-------------------------------|
+| Backend | Spring Boot (Java 21)         |
+| Messaging | Kafka                         |
+| Search Engine | Elasticsearch                 |
+| Cache / Store | Redis (Redis Stack)           |
+| Parsing | Jsoup                         |
+| AI / Embeddings | Ollama (nomic-embed-text), OpenAI|
 | Containerization| Docker                        |
+
 
 ---
 
@@ -100,6 +108,7 @@ Autocomplete Service → Redis (FT.SUG)
 
 ---
 
+
 ## 🔄 Data Flow
 
 1. Seed URLs pushed to Kafka  
@@ -109,6 +118,65 @@ Autocomplete Service → Redis (FT.SUG)
 5. Pagerank builds graph + computes scores  
 6. Query Service serves ranked results  
 7. Autocomplete updated continuously  
+
+---
+
+## 🔄 RAG Flow
+
+User Query  
+↓  
+Generate Embedding  
+↓  
+Search Elasticsearch (BM25 + Vector + PageRank)  
+↓  
+Top Results  
+↓  
+Construct Context  
+↓  
+LLM (AI Summary)  
+↓  
+Final Answer
+
+---
+
+## 🧠 Semantic Search & RAG
+
+This project supports **semantic search** and **AI-powered answers** using embeddings and Retrieval-Augmented Generation (RAG).
+
+### 🔍 Vector Embeddings
+
+- Text (title + content) is converted into embeddings using **Ollama (`nomic-embed-text`)**
+- Stored in Elasticsearch as a `dense_vector` field
+- Enables semantic similarity search beyond keyword matching
+
+---
+
+### ⚡ Hybrid Search (BM25 + Vector + PageRank)
+
+Search ranking combines:
+
+- **BM25 (text relevance)**
+- **Cosine similarity (vector search)**
+- **PageRank (authority score)**
+
+Final scoring formula:
+
+```text
+0.3 * BM25_score
++ 0.6 * cosine_similarity
++ 0.1 * log(PageRank)
+```
+
+### 🤖 Retrieval-Augmented Generation (RAG)
+
+The system generates AI answers using top search results:
+1.	Top results are retrieved from Elasticsearch
+2.	Their content is used as context
+3.	A prompt is constructed
+4.	Sent to LLM (OpenAI via Spring AI)
+5.	Returns a concise answer
+
+
 
 ---
 
@@ -157,6 +225,15 @@ curl "http://localhost:8084/autocomplete?query=spo"
 
 ---
 
+### 4. AI Summary API
+
+```bash
+POST /search/ai-summary?query=your_query
+```
+
+
+---
+
 ## 📊 Key Features
 	•	✅ Distributed microservices architecture
 	•	✅ Event-driven pipeline using Kafka
@@ -165,6 +242,9 @@ curl "http://localhost:8084/autocomplete?query=spo"
 	•	✅ PageRank-based ranking
 	•	✅ Query caching for performance
 	•	✅ Rate-limited web crawling
+    •   ✅ Semantic search using vector embeddings  
+    •   ✅ Hybrid ranking (BM25 + Vector + PageRank)  
+    •   ✅ AI-powered answers (RAG)
 
 ---
 
@@ -172,7 +252,8 @@ curl "http://localhost:8084/autocomplete?query=spo"
 	•	Basic URL normalization
 	•	Limited ranking signals (no click tracking yet)
 	•	PageRank computation not optimized for large scale
-	•	No frontend UI
+    •	Vector search limited by embedding quality
+    •	RAG context limited to top results only
 
 ---
 
@@ -183,6 +264,8 @@ curl "http://localhost:8084/autocomplete?query=spo"
 	•	Improved URL normalization
 	•	Distributed PageRank computation
 	•	Observability (metrics, logging, tracing)
+    •	Introduce re-ranking models (cross-encoders)  
+    •	Improve RAG with better prompt engineering
 
 ---
 
